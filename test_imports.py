@@ -22,7 +22,7 @@ market_orders = MarketOrderRequest(
     time_in_force = TimeInForce.DAY
  )
 
-market_order = trading_client .submit_order(market_orders)
+market_order = trading_client.submit_order(market_orders)
 print(market_order)
 
 limit_order1 = LimitOrderRequest(
@@ -55,4 +55,3 @@ orders = trading_client.get_orders(request_params)
 
 for order in orders:
     print(order.id)
-
