@@ -59,8 +59,30 @@ def OPTI_MACO(df : pd.DataFrame) :
     return best_lookback_1, best_lookback_2, best_profitfactor
 
 
-# %%
-if __name__ == "__main__":  
+def walkforward_MA(ohlc: pd.DataFrame, train_lookback: int = 24 * 365 * 4, train_step: int = 24 * 30):
+
+    n = len(ohlc)
+    wf_signal = np.full(n, np.nan)
+    tmp_signal = None
+    
+    next_train = train_lookback
+    for i in range(next_train, n):
+        if i == next_train:
+            bl1, bl2 , _ = OPTI_MACO(ohlc.iloc[i-train_lookback:i])
+            tmp_signal, _ = MA_CROSSOVER(ohlc, bl1, bl2)
+            next_train += train_step
+        
+        wf_signal[i] = tmp_signal.iloc[i]
+    
+    return wf_signal
+
+
+
+
+
+if __name__ == '__main__':
+
+
     symbol = 'GLD'
 
     df_gold = yf.download([symbol], start = '2016-01-31', end = '2020-01-31', interval="1d")
@@ -110,7 +132,6 @@ if __name__ == "__main__":
     plt.legend(loc=2)
     plt.show()
     print(f"il y a eu {nb_t_btc_notopty} trade")
-
 
 
 
