@@ -1,7 +1,6 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import ta
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
 
