@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import ta
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
 
@@ -156,16 +157,64 @@ class ARSIstrat(Strategy):
 
 # 1. Read CSV without date parsing
 full_df = pd.read_csv('BATS_QQQ, 60_a45be.csv')
+start = '2018-01-01'
+end_excl = '2024-01-01'   # exclusive upper bound (covers all of 2018–2022)
 full_df['time'] = pd.to_datetime(full_df['time'].astype(int), unit='s')
 full_df.set_index('time', inplace=True)
 full_df.sort_index(inplace=True)
+full_df = full_df.loc[(full_df.index >= start) & (full_df.index < end_excl)].copy()
 full_df = full_df.rename(columns={
     'open':'Open', 'high':'High', 'low':'Low', 'close':'Close', 'volume':'Volume'
 })
 print(full_df.head())
 
-bt = Backtest(full_df, ARSIstrat, cash=1000000, commission=0.0,spread=0.0001)
+bt = Backtest(full_df, ARSIstrat, cash=1000000, commission=0.0,spread=0.0001,finalize_trades=True)
+import multiprocessing as mp
+import backtesting as btng
 
-stats = bt.run()
-print(stats)
-bt.plot() 
+if __name__ == '__main__':
+    # macOS-safe multiprocessing for bt.optimize
+    btng.Pool = mp.get_context('spawn').Pool
+
+    # Build your DataFrame 'full_df' above this point (with Open/High/Low/Close/Volume index by time)
+    bt = Backtest(
+        full_df,
+        ARSIstrat,
+        cash=1_000_000,
+        commission=0.0,
+        spread=0.0001,
+        finalize_trades=True
+    )
+
+    # --- optimize 3 variables: n_fast, n_slow, n_vslow ---
+    stats, heatmap = bt.optimize(
+        n_fast=range(5, 16),          # 5..15
+        n_slow=range(10, 41, 2),      # 10..40 step 2
+        n_vslow=range(40, 121, 5),    # 40..120 step 5 (the "very slow" you asked to include)
+        maximize='Sharpe Ratio',
+        return_heatmap=True,
+        constraint=lambda p: p.n_fast < p.n_slow < p.n_vslow,
+        # method='random', max_tries=1500, random_state=42,  # uncomment to speed up search
+    )
+
+    # --- metrics ---
+    print(stats[['Sharpe Ratio', 'Return [%]', '# Trades']])
+
+    # --- best params from the fitted strategy instance (reliable across versions) ---
+    best = stats._strategy
+    params = {
+        'n_fast':  int(best.n_fast),
+        'n_slow':  int(best.n_slow),
+        'n_vslow': int(best.n_vslow),
+        'sig_len': int(getattr(best, 'sig_len', 14)),
+        'sl_pct':  float(getattr(best, 'sl_pct', 0.01)),
+    }
+    print(params)
+
+    # --- (optional) also derive best params from heatmap (handles Series or DataFrame) ---
+    if isinstance(heatmap, pd.Series):
+        best_idx = heatmap.astype(float).idxmax()
+    else:
+        best_idx = heatmap['Sharpe Ratio'].astype(float).idxmax()
+    best_params = dict(zip(heatmap.index.names, best_idx))
+    print(best_params)
