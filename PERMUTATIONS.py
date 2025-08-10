@@ -1,4 +1,4 @@
-# %%
+
 import yfinance as yf
 import numpy as np
 import pandas as pd
@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 from typing import List, Union 
 from tqdm import tqdm
-from Imports.MACOPY import MA_CROSSOVER, OPTI_MACO, walkforward_MA
+from MACOPY import MA_CROSSOVER, OPTI_MACO, walkforward_MA
 
-# %%
 def get_permutation(
         ohlc : Union[pd.DataFrame, List[pd.DataFrame]],
         start_index : int = 0, 
@@ -99,7 +98,6 @@ def get_permutation(
     else:
         return perm_ohlc[0]
 
-# %%
 if __name__ == '__main__':
 
     symbol_1 = 'BTC-USD'
@@ -228,7 +226,6 @@ if __name__ == '__main__':
     plt.show()
 
 
-    # %%
 
 
 
