@@ -412,6 +412,8 @@ def mc_score(df, params, B=200, block_len=48, spread_base=0.0001):
     return {"mu": mu, "sd": sd, "q25": q25, "p": float(p)}
 
 
+
+
 # --- Main pipeline ------------------------------------------------------------
 
 def main():
@@ -480,6 +482,7 @@ def main():
     for i, p in enumerate(finalists, 1):
         print(f"{i}. {p} | robust_score={val_scores[idxs[i-1]]:.3f}")
 
+
     # 4) Monte Carlo on validation year
     MC_B = 200
     BLOCK_LEN = 48  # 2 trading days for hourly bars
@@ -499,6 +502,7 @@ def main():
 
 
     # 5) Final untouched test on 2023
+    print(finalists)
     test_score, _, test_stats = run_bt(df_test, best_p)
     print("\n=== Final Test (2023) ===")
     print(f"Test score (Sharpe-penalty): {test_score:.3f}")
