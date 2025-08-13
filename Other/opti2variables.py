@@ -77,11 +77,11 @@ def stdev2_slow_block(close):
     return stdev2_slow, stdev2_signal
 
 class ARSIstrat(Strategy):
-    sl_pct = 0.01   # Stop Loss
+    sl_pct = 0.005   # Stop Loss
     tp_pct = None   # Take Profit
-    n_fast = 7
-    n_slow = 14
-    n_vslow = 50
+    n_fast = 9
+    n_slow = 22
+    n_vslow = 55
     sig_len = 14
 
     def init(self):
@@ -188,28 +188,20 @@ if __name__ == '__main__':
 
     # --- optimize 3 variables: n_fast, n_slow, n_vslow ---
     stats, heatmap = bt.optimize(
-        n_fast=range(5, 16),          # 5..15
-        n_slow=range(10, 41, 2),      # 10..40 step 2
-        n_vslow=range(40, 121, 5),    # 40..120 step 5 (the "very slow" you asked to include)
+        sig_len=[7, 10, 14, 21, 28],                          # ARSI signal smoothing
+        sl_pct=[float(x) for x in np.linspace(0.005, 0.03, 11)],
         maximize='Sharpe Ratio',
         return_heatmap=True,
-        constraint=lambda p: p.n_fast < p.n_slow < p.n_vslow,
+        constraint=lambda p:(p.sig_len > 0) and (p.sl_pct > 0),
         # method='random', max_tries=1500, random_state=42,  # uncomment to speed up search
     )
 
     # --- metrics ---
     print(stats[['Sharpe Ratio', 'Return [%]', '# Trades']])
 
-    # --- best params from the fitted strategy instance (reliable across versions) ---
+    # Best params from the fitted strategy
     best = stats._strategy
-    params = {
-        'n_fast':  int(best.n_fast),
-        'n_slow':  int(best.n_slow),
-        'n_vslow': int(best.n_vslow),
-        'sig_len': int(getattr(best, 'sig_len', 14)),
-        'sl_pct':  float(getattr(best, 'sl_pct', 0.01)),
-    }
-    print(params)
+    print({'sig_len': int(best.sig_len), 'sl_pct': float(best.sl_pct)})
 
     # --- (optional) also derive best params from heatmap (handles Series or DataFrame) ---
     if isinstance(heatmap, pd.Series):
@@ -218,3 +210,5 @@ if __name__ == '__main__':
         best_idx = heatmap['Sharpe Ratio'].astype(float).idxmax()
     best_params = dict(zip(heatmap.index.names, best_idx))
     print(best_params)
+
+    
