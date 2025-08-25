@@ -9,22 +9,22 @@ import yfinance as yf
 # Core libs
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
-from Strategy.strategy import ARSIstrat
+from tradingbot.strategies.strategy import ARSIstrat
 # --- Data loading -------------------------------------------------------------
 CUTOFF = "2024-01-01"
 
 ASSETS = {
-    "QQQ":   ("csv", os.path.join("CSV_files","BATS_QQQ, 60_a45be.csv"),
+    "QQQ":   ("csv", os.path.join("data","BATS_QQQ, 60_a45be.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
-    "MSCI":  ("csv", os.path.join("CSV_files","EURONEXT_DLY_IWDA, 60_6c01f.csv"),
+    "MSCI":  ("csv", os.path.join("data","EURONEXT_DLY_IWDA, 60_6c01f.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
-    "SMI":   ("csv", os.path.join("CSV_files","SIX_DLY_SMI, 60_2d252.csv"),
+    "SMI":   ("csv", os.path.join("data","SIX_DLY_SMI, 60_2d252.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
-    "SPX":   ("csv", os.path.join("CSV_files","SP_SPX, 60_c5754.csv"),
+    "SPX":   ("csv", os.path.join("data","SP_SPX, 60_c5754.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
-    "CAC40": ("csv", os.path.join("CSV_files","TVC_CAC40, 60_aae3c.csv"),
+    "CAC40": ("csv", os.path.join("data","TVC_CAC40, 60_aae3c.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
-    "DAX":   ("csv", os.path.join("CSV_files","XETR_DLY_DAX, 60_dc96e.csv"),
+    "DAX":   ("csv", os.path.join("data","XETR_DLY_DAX, 60_dc96e.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
 }
 

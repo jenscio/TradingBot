@@ -6,15 +6,15 @@ from backtesting import Backtest,Strategy
 from backtesting.lib import resample_apply
 import matplotlib.pyplot as plt
 
-from strategy import ARSIstrat
+from tradingbot.strategies.strategy import ARSIstrat
 
 import sys, inspect
-print(ARSIstrat.__module__)                               # should be 'strategy'
+print(ARSIstrat.__module__)                               # should be 'tradingbot.strategies.strategy'
 print(sys.modules[ARSIstrat.__module__].__file__)         # path to strategy.py you expect
 print([a for a in dir(ARSIstrat) if a.startswith('n_')])  # should show ['n_fast','n_slow','n_vslow']
 
 
-full_df = pd.read_csv('BATS_QQQ, 60_a45be.csv')
+full_df = pd.read_csv('data/BATS_QQQ, 60_a45be.csv')
 start = '2018-01-01'
 end_excl = '2024-01-01'   # exclusive upper bound (covers all of 2018–2022)
 full_df['time'] = pd.to_datetime(full_df['time'].astype(int), unit='s')

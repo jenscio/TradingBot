@@ -8,10 +8,10 @@ from backtesting import Backtest
 
 # --- import your strategy class ---
 try:
-    from strategy import ARSIstrat
+    from tradingbot.strategies.strategy import ARSIstrat
 except Exception as e:
     raise SystemExit(
-        "Could not import ARSIstrat from Strategy/strategy.py.\n"
+        "Could not import ARSIstrat from tradingbot/strategies/strategy.py.\n"
         "Make sure the file is import-safe (no CSV reading at import time).\n"
         f"Original error: {e}"
     )
@@ -22,12 +22,12 @@ SPREAD = 0.0001        # tweak per market if you like
 BH_LAG_DAYS = 30
 
 ASSETS = {
-    "QQQ":   os.path.join("CSV_files", "BATS_QQQ, 60_a45be.csv"),
-    "MSCI":  os.path.join("CSV_files", "EURONEXT_DLY_IWDA, 60_6c01f.csv"),
-    "SMI":   os.path.join("CSV_files", "SIX_DLY_SMI, 60_2d252.csv"),
-    "SPX":   os.path.join("CSV_files", "SP_SPX, 60_c5754.csv"),
-    "CAC40": os.path.join("CSV_files", "TVC_CAC40, 60_aae3c.csv"),
-    "DAX":   os.path.join("CSV_files", "XETR_DLY_DAX, 60_dc96e.csv"),
+    "QQQ":   os.path.join("data", "BATS_QQQ, 60_a45be.csv"),
+    "MSCI":  os.path.join("data", "EURONEXT_DLY_IWDA, 60_6c01f.csv"),
+    "SMI":   os.path.join("data", "SIX_DLY_SMI, 60_2d252.csv"),
+    "SPX":   os.path.join("data", "SP_SPX, 60_c5754.csv"),
+    "CAC40": os.path.join("data", "TVC_CAC40, 60_aae3c.csv"),
+    "DAX":   os.path.join("data", "XETR_DLY_DAX, 60_dc96e.csv"),
 }
 
 # Your picked params

@@ -156,7 +156,7 @@ class ARSIstrat(Strategy):
 
 """""
 # 1. Read CSV without date parsing
-full_df = pd.read_csv('BATS_QQQ, 60_a45be.csv')
+full_df = pd.read_csv('data/BATS_QQQ, 60_a45be.csv')
 start = '2018-01-01'
 end_excl = '2025-07-07'   # exclusive upper bound (covers all of 2018–2022)
 full_df['time'] = pd.to_datetime(full_df['time'].astype(int), unit='s')

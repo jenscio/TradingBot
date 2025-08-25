@@ -9,7 +9,7 @@ import yfinance as yf
 # Core libs
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
-from Strategy.strategy import ARSIstrat
+from tradingbot.strategies.strategy import ARSIstrat
 # --- Data loading -------------------------------------------------------------
 
 def load_data(csv_path: str, start='2018-01-01', end_excl='2024-01-01'):
@@ -499,7 +499,7 @@ def main():
     np.random.seed(42)
 
     # 0) Load data (adjust path if needed)
-    csv_path = 'BATS_QQQ, 60_a45be.csv'
+    csv_path = 'data/BATS_QQQ, 60_a45be.csv'
     if not os.path.exists(csv_path):
         raise SystemExit(f"CSV not found: {csv_path}")
     full_df = load_data(csv_path, start='2018-01-01', end_excl='2024-07-15')
