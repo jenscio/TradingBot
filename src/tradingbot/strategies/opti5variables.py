@@ -114,7 +114,7 @@ class ARSIstrat(Strategy):
                 sl = anchor * (1 - self.sl_pct); self.position.close(); self.buy(sl=sl)
 
 # ===================== Data load (same CSV and window as file B) ==============
-CSV_PATH = "CSV_files/EURONEXT_DLY_IWDA, 60_6c01f.csv"
+CSV_PATH = "data/EURONEXT_DLY_IWDA, 60_6c01f.csv"
 START = "2018-01-01"
 END_EXCL = "2024-01-01"
 

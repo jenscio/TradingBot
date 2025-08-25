@@ -9,13 +9,13 @@ import yfinance as yf
 # Core libs
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
-from strategy import ARSIstrat
+from tradingbot.strategies.strategy import ARSIstrat
 # --- Data loading -------------------------------------------------------------
 CUTOFF = "2024-01-01"
 
 ASSETS = {
     
-    "MSCI":  ("csv", os.path.join("CSV_files","EURONEXT_DLY_IWDA, 60_6c01f.csv"),
+    "MSCI":  ("csv", os.path.join("data","EURONEXT_DLY_IWDA, 60_6c01f.csv"),
               {"start":"2018-01-01","end_excl": CUTOFF}),
 
 }

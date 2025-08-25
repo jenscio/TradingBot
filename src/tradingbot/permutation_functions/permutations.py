@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from typing import List, Union 
 from tqdm import tqdm
-from Other.MACOPY import MA_CROSSOVER, OPTI_MACO, walkforward_MA
+from tradingbot.other.macopy import MA_CROSSOVER, OPTI_MACO, walkforward_MA
 
 def get_permutation(
         ohlc : Union[pd.DataFrame, List[pd.DataFrame]],
