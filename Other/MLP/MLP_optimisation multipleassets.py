@@ -9,18 +9,28 @@ import yfinance as yf
 # Core libs
 from backtesting import Backtest, Strategy
 from backtesting.lib import crossover
-from strategy import ARSIstrat
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))  # repo root
+from Strategy.strategy import ARSIstrat
 # --- Data loading -------------------------------------------------------------
-CUTOFF = "2024-01-01"
+CUTOFF = "2023-01-01"
 
 ASSETS = {
-    
-    "MSCI":  ("csv", os.path.join("CSV_files","EURONEXT_DLY_IWDA, 60_6c01f.csv"),
-              {"start":"2018-01-01","end_excl": CUTOFF}),
-
+   # "SP": ("csv", os.path.join("CSV_files", "SP_SPX, 60_47660.csv"),
+    #         {"start": "2014-01-02", "end_excl": CUTOFF}),
+    "QQQ": ("csv", os.path.join("CSV_files", "BATS_QQQ, 60_a45be.csv"),
+             {"start": "2018-01-02", "end_excl": CUTOFF}),
+    #"MSCI": ("csv", os.path.join("CSV_files", "EURONEXT_DLY_IWDA, 60_6c01f.csv"),
+     #        {"start": "2018-01-02", "end_excl": CUTOFF}),
+    #"SMI": ("csv", os.path.join("CSV_files", "SIX_DLY_SMI, 60_2d252.csv"),
+     #        {"start": "2018-01-02", "end_excl": CUTOFF}),
+    #"CAC40": ("csv", os.path.join("CSV_files", "TVC_CAC40, 60_aae3c.csv"),
+     #        {"start": "2018-01-02", "end_excl": CUTOFF}),
+    #"DAX": ("csv", os.path.join("CSV_files", "XETR_DLY_DAX, 60_dc96e.csv"),
+     #        {"start": "2018-01-02", "end_excl": CUTOFF}),
 }
 
-def load_data(csv_path: str, start='2018-01-01', end_excl='2024-01-01'):
+def load_data(csv_path: str, start='2018-01-02', end_excl='2023-01-01'):
     df = pd.read_csv(csv_path)
     df['time'] = pd.to_datetime(df['time'].astype(int), unit='s')
     df.set_index('time', inplace=True)
@@ -73,13 +83,22 @@ def load_asset(name, kind, src, kwargs):
     return df
 
 def load_all_assets():
-    out = {}
-    for name, (kind, src, kw) in ASSETS.items():
+    data, weights = {}, {}
+    for name, meta in ASSETS.items():
+        # backward compatible: allow 3- or 4-tuples
+        if len(meta) == 3:
+            kind, src, kw = meta
+            w = 1.0
+        else:
+            kind, src, kw, w = meta
         df = load_asset(name, kind, src, kw)
-        # light cleanup
         df = df.dropna(subset=["Open","High","Low","Close"]).copy()
-        out[name] = df
-    return out
+        if "Volume" in df.columns:
+            df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0.0)
+        data[name] = df
+        weights[name] = float(w)
+    return data, weights
+
 
 # ==== ROBUST SCORING (per-asset CV, then aggregate across assets) ============
 def _quantile_folds(df_idx, k=4):
@@ -112,27 +131,50 @@ def robust_cv_score_on_df(df, p, spreads=(0.00008,0.00010,0.00012), k=4):
     tpd = float(np.median(tpds))
     return q25 - 0.5*std - 0.02*tpd
 
-def robust_score_across_assets(assets_dict, p):
-    # score each asset, then aggregate robustly
+def robust_score_across_assets(assets_dict, p, weights=None, agg="median", dispersion_penalty=0.15):
+    """
+    Score a parameter set p by running robust CV on each asset and
+    aggregating the per-asset scores.
+
+    agg: "median" (robust default), "mean", or "min" (pessimistic).
+    weights: dict name->float for importance. Defaults to 1.0 each.
+    dispersion_penalty: penalty * std(scores) to discourage overfitting to one asset.
+    """
     scores = []
+    ws = []
     for name, df in assets_dict.items():
         s = robust_cv_score_on_df(df, p)
-        scores.append(s)
-    scores = np.array(scores, float)
+        scores.append(float(s))
+        w = 1.0 if (weights is None or name not in weights) else float(weights[name])
+        ws.append(w)
+
+    scores = np.array(scores, dtype=float)
+    ws = np.array(ws, dtype=float)
     if (scores <= -1e8).all():
         return -1e9
-    # median for robustness; small penalty for dispersion across assets
-    return float(np.median(scores) - 0.15*np.std(scores))
+
+    if agg == "mean":
+        base = float(np.average(scores, weights=ws))
+    elif agg == "min":
+        base = float(np.min(scores))
+    else:  # "median" robust default
+        # weighted median is overkill; plain median is fine for robustness
+        base = float(np.median(scores))
+
+    # Penalize dispersion so we prefer params that are decent everywhere.
+    pen = dispersion_penalty * float(np.std(scores))
+    return base - pen
+
 
 
 
 # --- Parameter space ----------------------------------------------------------
 SPACE = {
-    'sl_pct': (0.001, 0.02, 'float'),  # 0.1% .. 2%
-    'n_fast': (5, 25, 'int'),
-    'n_slow': (10, 55, 'int'),
-    'n_vslow': (30, 120, 'int'),
-    'sig_len': (5, 30, 'int'),
+    'sl_pct': (0.00, 0.02, 'float'),  # 0.1% .. 2%
+    'n_fast': (3, 50, 'int'),
+    'n_slow': (10, 100, 'int'),
+    'n_vslow': (30, 200, 'int'),
+    'sig_len': (5, 50, 'int'),
 }
 ORDER = list(SPACE.keys())
 
@@ -271,48 +313,87 @@ def sample_params(n):
 
 
 # --- Surrogate (PyTorch) ------------------------------------------------------
-try:
-    import torch
-    import torch.nn as nn
-except Exception as e:
-    raise SystemExit("PyTorch not installed. Run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu")
+import numpy as np
+import torch
+import torch.nn as nn
 
-
+# ---------------- Model ----------------
 class Surrogate(nn.Module):
-    def __init__(self, d, p_dropout=0.15):
+    def __init__(self, d, width=256, depth=8, p_dropout=0.10):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d, 64), nn.ReLU(),
-            nn.Linear(64, 64), nn.ReLU(),
-            nn.Dropout(p_dropout),
-            nn.Linear(64, 1)
-        )
+        self.inp = nn.Linear(d, width)
+        blocks = []
+        for i in range(depth):
+            blocks += [
+                nn.LayerNorm(width),
+                nn.GELU(),
+                nn.Linear(width, width),
+                nn.Dropout(p_dropout),
+            ]
+        self.blocks = nn.Sequential(*blocks)
+        self.proj = nn.Linear(d, width) if d != width else nn.Identity()
+        self.out = nn.Linear(width, 1)
 
     def forward(self, x):
-        return self.net(x).squeeze(-1)
+        h0 = self.inp(x)
+        h = h0
+        # residual every two layers (after Linear)
+        for i in range(0, len(self.blocks), 4):
+            block = self.blocks[i:i+4]
+            h = block(h)  # LN -> GELU -> Linear -> Dropout
+            if i % 8 == 0:   # every second block, add residual (tune as you like)
+                h = h + h0
+        return self.out(h).squeeze(-1)
 
 
-def fit_surrogate(X, y, steps=2000, lr=1e-3, wd=1e-3, val_frac=0.2, patience=200):
+# ---------------- Fit function ----------------
+def fit_surrogate(
+    X, y, 
+    steps=2500, lr=3e-4, wd=1e-3, val_frac=0.2, patience=250, clip=1.0
+):
+    """
+    Fit surrogate with Surrogate-B architecture but:
+      - standardize X and y
+      - cosine LR schedule
+      - gradient clipping
+      - AdamW optimizer
+      - patience-based early stopping
+    """
     from copy import deepcopy
     X = np.array(X, dtype=np.float32); y = np.array(y, dtype=np.float32)
-    n = len(X)
+
+    # --- normalize inputs and outputs ---
+    Xm, Xs = X.mean(0, keepdims=True), X.std(0, keepdims=True) + 1e-8
+    ym, ys = y.mean(), y.std() + 1e-8
+    Xn, yn = (X - Xm) / Xs, (y - ym) / ys
+
+    n = len(Xn)
     if n < 10:
         raise ValueError("Need at least 10 samples to fit surrogate")
     idx = np.random.permutation(n)
     k = int(n * (1 - val_frac))
     tr, va = idx[:k], idx[k:]
-    Xt = torch.tensor(X[tr]); yt = torch.tensor(y[tr])
-    Xv = torch.tensor(X[va]); yv = torch.tensor(y[va])
+
+    Xt = torch.tensor(Xn[tr]); yt = torch.tensor(yn[tr])
+    Xv = torch.tensor(Xn[va]); yv = torch.tensor(yn[va])
 
     model = Surrogate(X.shape[1])
-    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
     loss = nn.MSELoss()
 
     best = (1e9, None)
     bad = 0
     for _ in range(steps):
-        model.train(); opt.zero_grad()
-        pred = model(Xt); l = loss(pred, yt); l.backward(); opt.step()
+        # train step
+        model.train(); opt.zero_grad(set_to_none=True)
+        pred = model(Xt); l = loss(pred, yt)
+        l.backward()
+        if clip is not None:
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip)
+        opt.step(); sched.step()
+
+        # validation
         model.eval()
         with torch.no_grad():
             v = loss(model(Xv), yv).item()
@@ -322,25 +403,56 @@ def fit_surrogate(X, y, steps=2000, lr=1e-3, wd=1e-3, val_frac=0.2, patience=200
                 bad += 1
             if bad > patience:
                 break
+
+    # restore best weights
     model.load_state_dict(best[1])
     model.eval()
+
+    # attach scalers
+    model._scalers = (torch.tensor(Xm), torch.tensor(Xs), float(ym), float(ys))
     return model
 
 
+# ---------------- Prediction helpers ----------------
+def predict_mu_sigma(model, Z, n=MC_SAMPLES):
+    model.train()
+    Xm, Xs, ym, ys = model._scalers
+    Xz = (torch.tensor(Z, dtype=torch.float32) - Xm) / Xs
+    preds = []
+    with torch.no_grad():
+        for _ in range(n):
+            preds.append(model(Xz).cpu().numpy())
+    P = np.stack(preds, 0) * ys + ym
+    return P.mean(0), P.std(0)
+
+def _model_predict_raw(model, Z):
+    """
+    Predict de-normalized surrogate outputs for given encoded params Z.
+    Z: np.ndarray of shape [n_points, d] in [0,1] scale.
+    """
+    Xm, Xs, ym, ys = model._scalers
+    Xz = (torch.tensor(Z, dtype=torch.float32) - Xm) / Xs
+    with torch.no_grad():
+        pred_n = model(Xz).cpu().numpy()
+    return pred_n * ys + ym
+
 def argmax_on_surrogate(model, starts, iters=400, lr=0.05):
     best_z, best_pred = None, -1e9
+    Xm, Xs, ym, ys = model._scalers
     for z0 in starts:
         z = torch.tensor(z0.copy(), dtype=torch.float32, requires_grad=True)
         opt = torch.optim.Adam([z], lr=lr)
         for _ in range(iters):
             opt.zero_grad()
             z_c = torch.clamp(z, 0.0, 1.0)
-            pred = model(z_c)
-            loss = -pred
-            loss.backward(); opt.step()
+            z_in = (z_c - Xm) / Xs        # normalize input
+            pred_norm = model(z_in)       # prediction in normalized space
+            loss = -pred_norm
+            loss.backward()
+            opt.step()
         with torch.no_grad():
             z_c = torch.clamp(z, 0.0, 1.0)
-            pred = model(z_c).item()
+            pred = _model_predict_raw(model, z_c[None, :])[0]  # denormalized
             if pred > best_pred:
                 best_pred, best_z = pred, z_c.detach().numpy()
     return best_z, best_pred
@@ -410,8 +522,9 @@ def main():
     np.random.seed(42)
 
     # Load all assets
-    assets = load_all_assets()
+    assets, asset_weights = load_all_assets()
     print({k: (assets[k].index.min(), assets[k].index.max(), len(assets[k])) for k in assets})
+
 
     # Initial random design
     N_INIT = 60
@@ -419,7 +532,7 @@ def main():
     X, y = [], []
     t0 = time.perf_counter()
     for p in pool:
-        s_train = robust_score_across_assets(assets, p)
+        s_train = robust_score_across_assets(assets, p, weights=asset_weights, agg="median")
         X.append(encode(p)); y.append(s_train)
     print(f"Initial evals: {len(y)} in {time.perf_counter()-t0:.1f}s. Best cross-asset={max(y):.3f}")
 
@@ -445,12 +558,12 @@ def main():
         for idx in np.argsort(ucb)[::-1][:TOP_K]:
             p = decode(Z[idx])
             X.append(encode(p))
-            y.append(robust_score_across_assets(assets, p))
+            y.append(robust_score_across_assets(assets, p, weights=asset_weights, agg="median"))
         print(f"Round {r+1}: best cross-asset={max(y):.3f}")
 
     # Final ranking (cross-asset)
     candidates = [decode(x) for x in X]
-    val_scores = [robust_score_across_assets(assets, p) for p in candidates]
+    val_scores = [robust_score_across_assets(assets, p, weights=asset_weights, agg="median")for p in candidates]
     top_idxs = np.argsort(val_scores)[::-1][:25]
     top_params = [candidates[i] for i in top_idxs]
 

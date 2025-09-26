@@ -5,67 +5,61 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from backtesting import Backtest
-
-# --- import your strategy class ---
-try:
-    from strategy import ARSIstrat
-except Exception as e:
-    raise SystemExit(
-        "Could not import ARSIstrat from Strategy/strategy.py.\n"
-        "Make sure the file is import-safe (no CSV reading at import time).\n"
-        f"Original error: {e}"
-    )
+from pathlib import Path
+from strategy import ARSIstrat
 
 # ---------- Config ----------
-CUTOFF = "2025-07-17"  # end-exclusive cutoff for data
-SPREAD = 0.0001        # tweak per market if you like
-BH_LAG_DAYS = 30
+START = '2023-01-01'
+CUTOFF = "2025-07-17"  
+SPREAD = 0.000025   
+BH_LAG_DAYS = 40   
+
+print("Current working directory:", os.getcwd())
+print("Script folder:", Path(__file__).parent)
+csv_path = Path(__file__).parent / "CSV_files" / "BATS_QQQ, 60_a45be.csv"
+print("Expected CSV path:", csv_path)
+print("Exists?", csv_path.exists())
 
 ASSETS = {
     "QQQ":   os.path.join("CSV_files", "BATS_QQQ, 60_a45be.csv"),
     "MSCI":  os.path.join("CSV_files", "EURONEXT_DLY_IWDA, 60_6c01f.csv"),
     "SMI":   os.path.join("CSV_files", "SIX_DLY_SMI, 60_2d252.csv"),
-    "SPX":   os.path.join("CSV_files", "SP_SPX, 60_c5754.csv"),
+    "SPX":   os.path.join("CSV_files", "SP_SPX, 60_47660.csv"),
     "CAC40": os.path.join("CSV_files", "TVC_CAC40, 60_aae3c.csv"),
     "DAX":   os.path.join("CSV_files", "XETR_DLY_DAX, 60_dc96e.csv"),
 }
 
-# Your picked params
-PARAMS = {'sl_pct': 0.0031, 'n_fast': 24, 'n_slow': 37, 'n_vslow': 105, 'sig_len': 29}
+# picked params
+PARAMS = {'sl_pct': 0.00521, 'n_fast': 14, 'n_slow': 49, 'n_vslow': 65, 'sig_len': 10}
+PARAMS = {'sl_pct': 0.00421, 'n_fast': 9, 'n_slow': 20, 'n_vslow': 84, 'sig_len': 7}
 
 # ---------- Helpers ----------
-def load_csv_ohlcv(path, start='2018-01-02', end_excl=CUTOFF):
-    """Load your CSV schema (epoch-seconds in 'time') to Backtesting.py-friendly OHLCV."""
+def load_csv_ohlcv(path, start=START, end_excl=CUTOFF):
     df = pd.read_csv(path)
 
-    if 'time' not in df.columns:
-        raise ValueError(f"'time' column not found in {path}")
-
-    # time is epoch seconds
+    # Convert time into epoch seconds and sort the df by time
     df['time'] = pd.to_datetime(df['time'].astype(int), unit='s', utc=True)
     df = df.set_index('time').sort_index()
-    df = df.tz_convert(None)  # make tz-naive for Backtesting.py
+    df = df.tz_convert(None)  
 
     df = df.loc[(df.index >= start) & (df.index < end_excl)].copy()
 
-    # unify column names
+    # Unify correct column names
     rename_map = {'open':'Open', 'high':'High', 'low':'Low', 'close':'Close', 'volume':'Volume'}
     df = df.rename(columns=rename_map)
 
-    # keep only needed cols, ensure float
+    # Keep only the needed columns, ensure float
     need = ['Open', 'High', 'Low', 'Close', 'Volume']
     missing = [c for c in need if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns in {path}: {missing}")
-
     df = df[need].astype(float)
-    df['Volume'] = df['Volume'].fillna(0.0)
     df = df.dropna(subset=['Open','High','Low','Close'])
     return df
 
 
 def make_strat_with_params(p):
-    """Bind params to ARSIstrat without touching its code."""
+    
     class Tuned(ARSIstrat):
         sl_pct = float(p['sl_pct'])
         n_fast = int(p['n_fast'])
@@ -75,12 +69,12 @@ def make_strat_with_params(p):
     return Tuned
 
 
-def run_one(df, params, spread=SPREAD, bh_lag_days=0):
+def run_one(df, params, spread=SPREAD, bh_lag_days=BH_LAG_DAYS):
     Strat = make_strat_with_params(params)
     bt = Backtest(df, Strat, cash=1_000_000, commission=0.0, spread=spread, finalize_trades=True)
     stats = bt.run()
 
-    # Strategy equity in absolute currency → normalize later
+    # Strategy equity in absolute currency
     eq = stats._equity_curve['Equity'].astype(float).copy()
 
     # Align equity index to price index
@@ -89,14 +83,14 @@ def run_one(df, params, spread=SPREAD, bh_lag_days=0):
     else:
         eq.index = df.index[-len(eq):]
 
-    # --- anchor both curves BH + Strategy to start bh_lag_days later ---
+    # Anchor both curves Buy and Hold + Strategy to start BH_LAG_DAYS later
     anchor = df.index[0] + pd.Timedelta(days=bh_lag_days)
 
-    # clip to anchor date
+    # Clip to anchor date
     eq_clip = eq.loc[eq.index >= anchor]
     bh_clip = df['Close'].astype(float).loc[df.index >= anchor]
 
-    # common timeline, then rebase both to 1 at first point
+    
     common_idx = eq_clip.index.intersection(bh_clip.index).sort_values()
     panel = pd.DataFrame({
         'Strategy': eq_clip.loc[common_idx],
@@ -104,7 +98,7 @@ def run_one(df, params, spread=SPREAD, bh_lag_days=0):
     }).dropna()
     panel = panel / panel.iloc[0]
 
-    # Buy & Hold return computed on the same clipped window
+    # Buy and Hold return computed on the same clipped window
     if len(common_idx) >= 2:
         bh_pct = float((bh_clip.loc[common_idx[-1]] / bh_clip.loc[common_idx[0]] - 1.0) * 100.0)
     else:
@@ -118,13 +112,13 @@ def run_one(df, params, spread=SPREAD, bh_lag_days=0):
         'Win Rate %':       float(stats.get('Win Rate [%]', np.nan)),
         'Trades':           int(stats.get('# Trades', stats.get('Trades', np.nan))),
         'Exposure %':       float(stats.get('Exposure Time [%]', np.nan)),
-        'Buy&Hold %':       bh_pct,   # << now matches the plotted window
+        'Buy&Hold %':       bh_pct,   
     }
     return out, panel
 
 
 def plot_grid(panels_by_asset, metrics_by_asset, out_path="six_assets_comparison.png"):
-    """Make a 3x2 grid comparing Strategy vs Buy&Hold for each asset."""
+    # Make a 3x2 grid comparing Strategy vs Buy&Hold for each asset.
     names = list(panels_by_asset.keys())
     rows, cols = 3, 2
     fig, axes = plt.subplots(rows, cols, figsize=(14, 10), sharex=False)
@@ -147,9 +141,7 @@ def plot_grid(panels_by_asset, metrics_by_asset, out_path="six_assets_comparison
         ax.grid(True, alpha=0.3)
         ax.legend(fontsize=8, frameon=False, loc='upper left')
 
-    # Hide any unused subplots (in case fewer than 6)
-    for j in range(len(names), rows*cols):
-        fig.delaxes(axes[j])
+    
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
@@ -192,19 +184,23 @@ def main():
     out = out.sort_values('Sharpe', ascending=False)
 
     print("\nParams used:", PARAMS)
-    print("\nBacktest results across 6 assets (sorted by Sharpe):")
+    print("\nBacktest results across 6 etf's (sorted by Sharpe):")
     print(out.to_string())
 
-    # Save to CSV for record
-    out_path = "backtest_results_6_assets.csv"
-    out.to_csv(out_path)
-    print(f"\nSaved results to {out_path}")
+    # Save to csv for record
+    csv_dir = Path("CSV_files")
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    out_path = csv_dir / "backtest_results_6_assets.csv"
+    out.to_csv(out_path, index=False)
+    print(f"\nSaved results to {out_path.resolve()}")
 
     # Plot grid
-    # Keep the asset order consistent with the table (sorted by Sharpe)
+    # Keep the asset order consistent  (sorted by Sharpe)
     ordered_panels = {name: panels[name] for name in out.index if name in panels}
     ordered_metrics = {name: metrics_map[name] for name in out.index if name in metrics_map}
-    plot_grid(ordered_panels, ordered_metrics, out_path="six_assets_comparison.png")
+    Path("graphs").mkdir(exist_ok=True)
+    plot_grid(ordered_panels, ordered_metrics,
+          out_path="graphs/six_assets_comparison.png")
 
 
 if __name__ == "__main__":

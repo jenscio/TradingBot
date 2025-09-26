@@ -77,12 +77,12 @@ def stdev2_slow_block(close):
     return stdev2_slow, stdev2_signal
 
 class ARSIstrat(Strategy):
-    sl_pct = 0.0051   # Stop Loss
+    sl_pct = 0.00421   # Stop Loss
     tp_pct = None   # Take Profit
-    n_fast = 24
-    n_slow = 54
-    n_vslow = 119
-    sig_len = 30
+    n_fast = 14
+    n_slow = 49
+    n_vslow = 65
+    sig_len = 10
 
     def init(self):
         
@@ -154,24 +154,4 @@ class ARSIstrat(Strategy):
                 sl = anchor * (1 - self.sl_pct)
                 self.position.close(); self.buy(sl=sl)
 
-"""""
-# 1. Read CSV without date parsing
-full_df = pd.read_csv('BATS_QQQ, 60_a45be.csv')
-start = '2018-01-01'
-end_excl = '2025-07-07'   # exclusive upper bound (covers all of 2018–2022)
-full_df['time'] = pd.to_datetime(full_df['time'].astype(int), unit='s')
-full_df.set_index('time', inplace=True)
-full_df.sort_index(inplace=True)
-full_df = full_df.loc[(full_df.index >= start) & (full_df.index < end_excl)].copy()
-full_df = full_df.rename(columns={
-    'open':'Open', 'high':'High', 'low':'Low', 'close':'Close', 'volume':'Volume'
-})
-print(full_df.head())
 
-
-bt = Backtest(full_df, ARSIstrat, cash=1000000, commission=0.0,spread=0.0001,finalize_trades=True)
-stats=bt.run()
-print(stats._equity_curve)
-print(stats)
-# bt.plot()
-"""""
