@@ -14,7 +14,6 @@ SL_GRID = [round(x, 5) for x in np.linspace(0.0001, 0.0200, int((0.0200 - 0.0001
 
 # ---------- Data Loading ----------
 CSV_PATH = "CSV_files/BATS_QQQ, 60_a45be.csv"
-CSV_PATH = "CSV_files/SIX_DLY_SMI, 60_2d252.csv"
 full_df = pd.read_csv(CSV_PATH)
 full_df['time'] = pd.to_datetime(full_df['time'].astype(int), unit='s', utc=True)
 full_df.set_index('time', inplace=True)
@@ -25,7 +24,7 @@ full_df = full_df.rename(columns={
 full_df = full_df.dropna(subset=['Open','High','Low','Close'])
 
 # ---------- Slices ----------
-TRAIN_START = "2017-12-17"
+TRAIN_START = "2014-12-17"
 TRAIN_END   = "2020-12-31"   # inclusive
 VAL_START   = "2021-01-01"
 VAL_END     = "2022-12-31"   # inclusive
@@ -193,13 +192,13 @@ def robust_score(stats) -> float:
     trade_factor = min(1.0, n_trades / 100.0)
 
     # --- Components per spec ---
-    s_sharpe   = 0.25 * squash(sharpe, 2.0)
-    s_sortino  = 0.35 * squash(sortino, 2.0)
-    s_calmar   = 0.25 * squash(calmar, 3.0)
+    s_sharpe   = 0.3 * squash(sharpe, 2.0)
+    s_sortino  = 0.55 * squash(sortino, 2.0)
+    # s_calmar   = 0.25 * squash(calmar, 3.0)
     p_dd       = 0.10 * squash((max_dd_pct or 0.0) / 100.0, 0.20)    # DD normalized to 0–1 by 100%
     p_tail     = 0.05 * squash((left_tail or 0.0) / 100.0, 0.03)     # Tail as percent
 
-    score = trade_factor * (s_sharpe + s_sortino + s_calmar) - (p_dd + p_tail)
+    score = trade_factor * (s_sharpe + s_sortino) - (p_dd + p_tail)
 
     # (Optional) light complexity penalty to de-prefer overlong signals
     try:

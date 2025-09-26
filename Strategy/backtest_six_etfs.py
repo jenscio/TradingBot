@@ -31,7 +31,7 @@ ASSETS = {
 
 # picked params
 PARAMS = {'sl_pct': 0.00521, 'n_fast': 14, 'n_slow': 49, 'n_vslow': 65, 'sig_len': 10}
-PARAMS = {'sl_pct': 0.00421, 'n_fast': 9, 'n_slow': 20, 'n_vslow': 84, 'sig_len': 7}
+PARAMS = {'sl_pct': 0.00421, 'n_fast': 18, 'n_slow': 43, 'n_vslow': 51, 'sig_len': 21}
 
 # ---------- Helpers ----------
 def load_csv_ohlcv(path, start=START, end_excl=CUTOFF):
